@@ -4,10 +4,10 @@
 #include <fstream> 
 #include <typeinfo>
 
-void error_print(FILE* potok, size_t error, size_t* errors);
+void crash();
+// All poison is char ('$' - 36)
+// If memory don't allocate - program crash.
 
-// all poison is char ('$' - 36)
-//                                                                    maybe need size--?
 enum STACK_ERROR {
 	STACK_NPTR = 1,
 	STACK_FEWS = 2,
@@ -36,9 +36,11 @@ private:
 	void recalloc();
 	void fill_canary();
 	void count_hash(char* str);
+	void error_print(FILE* potok, size_t error, size_t* errors);
 
 public:
 	Stack();
+	Stack(long long capacity_);
 	Stack(const Stack& old);
 	Stack& operator= (const Stack& old);
 	void push(TYPE num);
@@ -47,15 +49,33 @@ public:
 };
 //                                                                                                Constructor
 template <typename TYPE>
-Stack<TYPE>::Stack() : size(0), capacity(1), hash(0) {                                    
+Stack<TYPE>::Stack() : size(0), capacity(1), hash(0) {                                         
 	left_canary = reinterpret_cast<size_t>(&left_canary);
 	right_canary = reinterpret_cast<size_t>(&right_canary);
 	data = (TYPE*)calloc(2 * sizeof(size_t) + sizeof(TYPE) * capacity, 1);
-	if (data == nullptr) abort();
+	if (data == nullptr) crash();
 
 	fill_canary();
 
-	printf("num - %d, size - %d, capacity - %d\n", data[0], size, capacity);
+	count_hash(reinterpret_cast<char*>(data));
+	dump();
+}
+
+template <typename TYPE>
+Stack<TYPE>::Stack(long long capacity_) : size(0), hash(0) {
+
+	if (capacity_ < 1) {
+		printf("We don't do stack with capacity < 1. Capacity will be 1");
+		capacity = 1;
+	}
+	else capacity = capacity_;
+
+	left_canary = reinterpret_cast<size_t>(&left_canary);
+	right_canary = reinterpret_cast<size_t>(&right_canary);
+	data = (TYPE*)calloc(2 * sizeof(size_t) + sizeof(TYPE) * capacity, 1);
+	if (data == nullptr) crash();
+	
+	fill_canary();
 
 	count_hash(reinterpret_cast<char*>(data));
 	dump();
@@ -64,17 +84,16 @@ Stack<TYPE>::Stack() : size(0), capacity(1), hash(0) {
 template <typename TYPE>
 Stack<TYPE>::Stack(const Stack& old) {
 	data = (TYPE*)calloc(2 * sizeof(size_t) + sizeof(TYPE) * old.capacity, 1);
-	if (data == nullptr) abort();
-
-	fill_canary();
-
-	if (data == nullptr) abort();
-	data = (TYPE*)memcpy(data, old.data, old.capacity * sizeof(TYPE));
+	if (data == nullptr) crash();
 
 	left_canary = reinterpret_cast<size_t>(&left_canary);
 	right_canary = reinterpret_cast<size_t>(&right_canary);
 	size = old.size;
 	capacity = old.capacity;
+
+	fill_canary();
+
+	data = (TYPE*)memcpy(data, old.data, old.capacity * sizeof(TYPE));
 
 	count_hash(reinterpret_cast<char*>(data));
 	dump();
@@ -83,20 +102,21 @@ Stack<TYPE>::Stack(const Stack& old) {
 template <typename TYPE>
 Stack<TYPE>& Stack<TYPE>:: operator= (const Stack<TYPE>& old) {
 	data = (TYPE*)calloc(2 * sizeof(size_t) + sizeof(TYPE) * old.capacity, 1);
-	if (data == nullptr) abort();
-
-	fill_canary();
-
-	if (data == nullptr) abort();
-	data = (TYPE*)memcpy(data, old.data, old.capacity * sizeof(TYPE));
+	if (data == nullptr) crash();
 
 	left_canary = reinterpret_cast<size_t>(&left_canary);
 	right_canary = reinterpret_cast<size_t>(&right_canary);
 	size = old.size;
 	capacity = old.capacity;
 
+	fill_canary();
+
+	data = (TYPE*)memcpy(data, old.data, old.capacity * sizeof(TYPE));
+
 	count_hash(reinterpret_cast<char*>(data));
 	dump();
+
+	return *this;
 }
 //																								Destructor
 template <typename TYPE>
@@ -121,40 +141,41 @@ Stack<TYPE>::~Stack() {
 }
 
 template <typename TYPE>
-void Stack<TYPE>::push(TYPE num) {                                        //good
-	//printf("num - (%d; %ld), size - [%d]\n", num.a, num.b, size);
+void Stack<TYPE>::push(TYPE num) {                                       
 	ok();
-	//printf("before - (%d; %ld)\n", data[size].a, data[size].b);          //poison
-	if (size >= capacity) recalloc();
 
+	if (size >= capacity - 1) recalloc();   // data[capacity - 1] is always 0
 	data[size] = num;
 	size++;
-	//printf("after - (%d; %ld)\n", data[size - 1].a, data[size - 1].b);
-	count_hash(reinterpret_cast<char*>(data));			//new upper
+
+	count_hash(reinterpret_cast<char*>(data));			
 	dump();
 }
 
 template <typename TYPE>
 TYPE Stack<TYPE>::pop() {
 	ok();
-	//printf("before - (%d; %ld)\n", data[size - 1].a, data[size - 1].b);     //upper element
+
 	if (size > 0) size--;
-	else ok();
+	else {
+		printf("Stack %s is empty. Will return 0\n", typeid(data[0]).name());
+		return data[capacity - 1];  //                  capacity is never < 1
+	}
 
 	TYPE returned = data[size];
 
 	for (size_t i = 0; i < sizeof(TYPE); i++) {
 		*(reinterpret_cast<char*>(data + size) + i) = '$';
 	}
-	//printf("after - (%d; %ld)\n", data[size].a, data[size].b);
-	count_hash(reinterpret_cast<char*>(data));    //poison
+
+	count_hash(reinterpret_cast<char*>(data));    
 	dump();
 
 	return returned;
 }
 
 template <typename TYPE>
-void Stack<TYPE>::recalloc() {           //  THERE PROBLEM
+void Stack<TYPE>::recalloc() {           
 	ok();
 
 	size_t old_cap = capacity;
@@ -163,8 +184,7 @@ void Stack<TYPE>::recalloc() {           //  THERE PROBLEM
 	data = reinterpret_cast<TYPE*>(reinterpret_cast<size_t*>(data) - 1);
 
 	data = (TYPE*)realloc(data, 2 * sizeof(size_t) + sizeof(TYPE) * capacity);
-
-	if (data == nullptr) abort();
+	if (data == nullptr) crash();
 
 	fill_canary();
 
@@ -189,20 +209,20 @@ void Stack<TYPE>::fill_canary() {
 
 template <typename TYPE>
 void Stack<TYPE>::dump() {
-	FILE* potok = fopen("log.txt", "a");
-
-	if (potok == nullptr) {
-		printf("log file can't be open\n"); 
-		return;
-	}
-
 	std::ofstream fout;
-	fout.open("log.txt", std::ios::app);
+	fout.open("log.txt", std::ios::app);                   // fout == nullptr
 	for (size_t i = 0; i < capacity; i++) {
 		fout << i << " - [" << data[i] << "]\n";
 	}
 	fout << "Stack type is " << typeid(data[0]).name() << "\n";
 	fout.close();
+
+	FILE* potok = fopen("log.txt", "a");
+
+	if (potok == nullptr) {
+		printf("log file can't be open\n");
+		return;
+	}
 
 	fprintf(potok, "Stack ptr - <%p>\n", this);
 	fprintf(potok, "Data  ptr - <%p>\n", data);
@@ -250,9 +270,10 @@ void Stack<TYPE>::ok() {
 
 	if (*(reinterpret_cast<size_t*>(data) - 1) != reinterpret_cast<size_t>(reinterpret_cast<size_t*>(data) - 1))
 		error_print(potok, STACK_LCD, &errors);
-	if (*(reinterpret_cast<size_t*>(data + capacity)) != reinterpret_cast<size_t>(reinterpret_cast<size_t*>(data + capacity)))
+	if (*(reinterpret_cast<size_t*>(data + capacity)) != reinterpret_cast<size_t>(reinterpret_cast<size_t*>(data + capacity))) {
+		printf("left is %llu, right is %llu\n", *(reinterpret_cast<size_t*>(data + capacity)), reinterpret_cast<size_t>(reinterpret_cast<size_t*>(data + capacity)));
 		error_print(potok, STACK_RCD, &errors);
-
+	}
 	if (errors != 0) {
 		fprintf(potok, "In %s stack %llu errors\n----------------------------------------------------------------\n", typeid(data[0]).name(), errors);
 		dump();
@@ -260,13 +281,16 @@ void Stack<TYPE>::ok() {
 	fclose(potok);
 }
 
-void error_print(FILE* potok, size_t error, size_t* errors) {
+template <typename TYPE>
+void Stack<TYPE>::error_print(FILE* potok, size_t error, size_t* errors) {
 	fprintf(potok, "ERROR Code - <%llu>\n", error);
+	printf("Error in %s stack. See more in log file\n", typeid(data[0]).name());
 	(*errors)++;
 }
 
 template <typename TYPE>
 void Stack<TYPE>::count_hash(char* data_) {
+	hash = 0;
 	size_t capacity_ = capacity * sizeof(TYPE);  //There should be no overflow, since there is a limit of addresses in memory
 	for (size_t i = 0; i < capacity_; i++) {
 		if (data_[i] % 3 == 0) {
@@ -285,4 +309,10 @@ void Stack<TYPE>::count_hash(char* data_) {
 	hash ^= !size;
 	//hash = !hash | size;
 	//hash = !capacity | hash;
+}
+
+void crash()
+{
+	printf("Memory can't be allocate. We don't know what to do.\n");
+	exit(1);
 }

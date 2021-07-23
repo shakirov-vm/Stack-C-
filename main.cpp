@@ -41,17 +41,13 @@ int main()
 		structs[i].b = 10 / (i + 1);
 	}
 	for (int i = 0; i < 10; i++) stk_test.push(structs[i]);
-	printf("-------------------------------------------------\n");
 	for (int i = 0; i < 10; i++) structs[i] = stk_test.pop();
-	for (int i = 0; i < 10; i++) printf("(%d; %lf) ", structs[i].a, structs[i].b);
 	Stack<int> stk_int;
 	Stack<double> stk_double;
 	Stack<char> stk_char;
 	Stack<class test> stk_struct;
 
 	class test duet = { };
-
-	printf("\n");
 
 	stk_int.push(11);
 	stk_int.push(22);
@@ -67,14 +63,20 @@ int main()
 	char Cb = stk_char.pop();
 
 	stk_char.push(a);
-
 	Stack<char> stk_char_2 = stk_char;
 
-	//char c = stk_char_2.pop();
+	char c = stk_char_2.pop();
+
+	stk_char = stk_char_2;
+
+	//Stack<int> stk_minus(9223372036854775807);       So much memory (2^65 bytes)
+	Stack<int> stk_minus_1(-10);
 
 	Stack<size_t> stk_size;
 	stk_size.push(0xDEADBEEF);
 	size_t i = stk_size.pop();
 	stk_size.push(0xDEADBEAF);
 	i = stk_size.pop();
+
+	return 0;
 }
