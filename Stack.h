@@ -9,15 +9,15 @@ void error_print(FILE* potok, size_t error, size_t* errors);
 // all poison is char ('$' - 36)
 //                                                                    maybe need size--?
 enum STACK_ERROR {
-	STACK_LCD = 1,
-	STACK_RCD = 2,
-	STACK_LCS = 3,
-	STACK_RCS = 4,
-	STACK_NPTR = 5,
-	STACK_OVER = 6,
-	STACK_HASH = 7,
-	STACK_UNOP = 8,
-	STACK_FEWS = 9
+	STACK_NPTR = 1,
+	STACK_FEWS = 2,
+	STACK_OVER = 3,
+	STACK_LCS = 4,
+	STACK_RCS = 5,
+	STACK_HASH = 6,
+	STACK_LCD = 7,
+	STACK_RCD = 8,
+	STACK_UNOP = 9
 };
 
 template <typename TYPE>
@@ -47,7 +47,7 @@ public:
 };
 //                                                                                                Constructor
 template <typename TYPE>
-Stack<TYPE>::Stack() : size(0), capacity(20), hash(0) {                                       //capacity - 20
+Stack<TYPE>::Stack() : size(0), capacity(1), hash(0) {                                    
 	left_canary = reinterpret_cast<size_t>(&left_canary);
 	right_canary = reinterpret_cast<size_t>(&right_canary);
 	data = (TYPE*)calloc(2 * sizeof(size_t) + sizeof(TYPE) * capacity, 1);
@@ -59,7 +59,6 @@ Stack<TYPE>::Stack() : size(0), capacity(20), hash(0) {                         
 
 	count_hash(reinterpret_cast<char*>(data));
 	dump();
-	ok();
 }
 //																							Copy constructor
 template <typename TYPE>
@@ -72,9 +71,13 @@ Stack<TYPE>::Stack(const Stack& old) {
 	if (data == nullptr) abort();
 	data = (TYPE*)memcpy(data, old.data, old.capacity * sizeof(TYPE));
 
+	left_canary = reinterpret_cast<size_t>(&left_canary);
+	right_canary = reinterpret_cast<size_t>(&right_canary);
+	size = old.size;
+	capacity = old.capacity;
+
 	count_hash(reinterpret_cast<char*>(data));
-	//dump();
-	ok();
+	dump();
 }
 //																							Operator= constructor
 template <typename TYPE>
@@ -87,37 +90,54 @@ Stack<TYPE>& Stack<TYPE>:: operator= (const Stack<TYPE>& old) {
 	if (data == nullptr) abort();
 	data = (TYPE*)memcpy(data, old.data, old.capacity * sizeof(TYPE));
 
+	left_canary = reinterpret_cast<size_t>(&left_canary);
+	right_canary = reinterpret_cast<size_t>(&right_canary);
+	size = old.size;
+	capacity = old.capacity;
+
 	count_hash(reinterpret_cast<char*>(data));
-	//dump();
-	ok();
+	dump();
 }
 //																								Destructor
 template <typename TYPE>
-Stack<TYPE>::~Stack() {                                                   /////////// !!!!!!!!
+Stack<TYPE>::~Stack() {                                                   
 	dump();
+
+	size_t type_size = sizeof(TYPE);
+
+	left_canary = 0;
+	right_canary = 0;
+	(reinterpret_cast<size_t*>(data) - 1)[0] = 0;
+	reinterpret_cast<size_t*>(data + capacity)[0] = 0;
+
+	for (size_t i = 0; i < capacity; i++)
+		for (size_t j = 0; j < type_size; j++)
+			*(reinterpret_cast<char*>(data + i) + j) = 0;
+	size = 0;
+	capacity = 0;
 
 	data = reinterpret_cast<TYPE*>(reinterpret_cast<size_t*>(data) - 1);
 	free(data);
 }
 
 template <typename TYPE>
-void Stack<TYPE>::push(TYPE num) {
-	printf("num - [%d], size - [%d]\n", num, size);
+void Stack<TYPE>::push(TYPE num) {                                        //good
+	//printf("num - (%d; %ld), size - [%d]\n", num.a, num.b, size);
 	ok();
-	printf("before - [%d]\n", data[size - 1]);
+	//printf("before - (%d; %ld)\n", data[size].a, data[size].b);          //poison
 	if (size >= capacity) recalloc();
 
 	data[size] = num;
 	size++;
-	printf("after - [%d]\n", data[size - 1]);
-	count_hash(reinterpret_cast<char*>(data));
+	//printf("after - (%d; %ld)\n", data[size - 1].a, data[size - 1].b);
+	count_hash(reinterpret_cast<char*>(data));			//new upper
 	dump();
 }
 
 template <typename TYPE>
 TYPE Stack<TYPE>::pop() {
 	ok();
-	printf("before - %d\n", data[size - 1]);
+	//printf("before - (%d; %ld)\n", data[size - 1].a, data[size - 1].b);     //upper element
 	if (size > 0) size--;
 	else ok();
 
@@ -126,15 +146,17 @@ TYPE Stack<TYPE>::pop() {
 	for (size_t i = 0; i < sizeof(TYPE); i++) {
 		*(reinterpret_cast<char*>(data + size) + i) = '$';
 	}
-	printf("after - %d\n", data[size - 1]);
-	count_hash(reinterpret_cast<char*>(data));
+	//printf("after - (%d; %ld)\n", data[size].a, data[size].b);
+	count_hash(reinterpret_cast<char*>(data));    //poison
 	dump();
-	ok();
+
 	return returned;
 }
 
 template <typename TYPE>
 void Stack<TYPE>::recalloc() {           //  THERE PROBLEM
+	ok();
+
 	size_t old_cap = capacity;
 	capacity *= 2;
 
@@ -149,12 +171,11 @@ void Stack<TYPE>::recalloc() {           //  THERE PROBLEM
 	int type_size = sizeof(TYPE);
 
 	for (size_t i = size; i < capacity; i++)
-		for (size_t i = 0; i < type_size; i++)
-			*(reinterpret_cast<char*>(data) + i) = 0;
+		for (size_t j = 0; j < type_size; j++)
+			*(reinterpret_cast<char*>(data + i) + j) = 0;
 
 	count_hash(reinterpret_cast<char*>(data));
-	//dump();
-	ok();
+	dump();
 }
 
 template <typename TYPE>
@@ -162,15 +183,12 @@ void Stack<TYPE>::fill_canary() {
 	(reinterpret_cast<size_t*>(data))[0] = reinterpret_cast<size_t>(data);
 
 	data = reinterpret_cast<TYPE*>(reinterpret_cast<size_t*>(data) + 1);
-	//                    +1?
-	data += capacity;
-	reinterpret_cast<size_t*>(data)[0] = reinterpret_cast<size_t>(data);
-	data -= capacity;
+
+	reinterpret_cast<size_t*>(data + capacity)[0] = reinterpret_cast<size_t>(data + capacity);
 }
 
 template <typename TYPE>
 void Stack<TYPE>::dump() {
-	//printf("In DUMP\n");
 	FILE* potok = fopen("log.txt", "a");
 
 	if (potok == nullptr) {
@@ -189,7 +207,7 @@ void Stack<TYPE>::dump() {
 	fprintf(potok, "Stack ptr - <%p>\n", this);
 	fprintf(potok, "Data  ptr - <%p>\n", data);
 	fprintf(potok, "Size - <%llu>, Capacity - <%llu>\n", size, capacity);
-	fprintf(potok, "DATA:   Left canary - <%p>, Right canary - <%p>\n", *(reinterpret_cast<size_t*>(data) - 1), *(reinterpret_cast<size_t*>(data) + capacity));
+	fprintf(potok, "DATA:   Left canary - <%p>, Right canary - <%p>\n", *(reinterpret_cast<size_t*>(data) - 1), *(reinterpret_cast<size_t*>(reinterpret_cast<TYPE*>(data) + capacity)));
 	fprintf(potok, "STRUCT: Left canary - <%p>, Right canary - <%p>\n", left_canary, right_canary);
 	fprintf(potok, "Hash - <%llu>\n", hash);
 	fprintf(potok, "\n=============================================================\n\n");
@@ -198,7 +216,6 @@ void Stack<TYPE>::dump() {
 
 template <typename TYPE>
 void Stack<TYPE>::ok() {
-	//printf("In OK\n");
 	FILE* potok = fopen("log.txt", "a");
 
 	if (potok == nullptr) {
@@ -225,7 +242,7 @@ void Stack<TYPE>::ok() {
 		error_print(potok, STACK_HASH, &errors);
 
 	if (data == nullptr) {
-		fprintf(potok, "Data is NULL\nIn this stack %llu errors\n----------------------------------------------------------------\n", errors);
+		fprintf(potok, "Data is NULL\nIn %s stack %llu errors\n----------------------------------------------------------------\n", typeid(data[0]).name(), errors);
 		dump();
 		fclose(potok);
 		return;
@@ -237,8 +254,8 @@ void Stack<TYPE>::ok() {
 		error_print(potok, STACK_RCD, &errors);
 
 	if (errors != 0) {
-		fprintf(potok, "In this stack %llu errors\n----------------------------------------------------------------\n", errors);
-	//	dump();
+		fprintf(potok, "In %s stack %llu errors\n----------------------------------------------------------------\n", typeid(data[0]).name(), errors);
+		dump();
 	}
 	fclose(potok);
 }
@@ -250,8 +267,6 @@ void error_print(FILE* potok, size_t error, size_t* errors) {
 
 template <typename TYPE>
 void Stack<TYPE>::count_hash(char* data_) {
-	//ok();
-
 	size_t capacity_ = capacity * sizeof(TYPE);  //There should be no overflow, since there is a limit of addresses in memory
 	for (size_t i = 0; i < capacity_; i++) {
 		if (data_[i] % 3 == 0) {
@@ -270,5 +285,4 @@ void Stack<TYPE>::count_hash(char* data_) {
 	hash ^= !size;
 	//hash = !hash | size;
 	//hash = !capacity | hash;
-
 }

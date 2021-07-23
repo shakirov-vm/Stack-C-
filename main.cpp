@@ -9,6 +9,7 @@
 
 class test
 {
+public:
 	int a;
 	double b;
 
@@ -19,20 +20,31 @@ std::ostream& operator << (std::ostream& out, const test& tst/*test const& t*/)
 {
 	char* str = (char*)calloc(1, MAXBUFFSIZE);
 	if (str == nullptr) abort();
-	sprintf(str, "(%d, %lf)", tst.a, tst.b);
+	sprintf(str, "(%d, %ld)", tst.a, tst.b);
 
 	return out << str;
 }
 
 int main()
 {
-	Stack<int> stk_int;
+	/*Stack<int> stk_int;
 	for (int i = 0; i < 10; i++) stk_int.push(i * 10);
 	printf("-------------------------------------------------\n");
 	int arrays[10] = { 0 };
 	for (int i = 0; i < 10; i++) arrays[i] = stk_int.pop();
 	for (int i = 0; i < 10; i++) printf("%d ", arrays[i]);
-	/*Stack<int> stk_int;
+	printf("\n=============================================================\n");*/
+	Stack<class test> stk_test;
+	class test structs[10] = { };
+	for (int i = 0; i < 10; i++) {
+		structs[i].a = 10 * i;
+		structs[i].b = 10 / (i + 1);
+	}
+	for (int i = 0; i < 10; i++) stk_test.push(structs[i]);
+	printf("-------------------------------------------------\n");
+	for (int i = 0; i < 10; i++) structs[i] = stk_test.pop();
+	for (int i = 0; i < 10; i++) printf("(%d; %lf) ", structs[i].a, structs[i].b);
+	Stack<int> stk_int;
 	Stack<double> stk_double;
 	Stack<char> stk_char;
 	Stack<class test> stk_struct;
@@ -58,5 +70,11 @@ int main()
 
 	Stack<char> stk_char_2 = stk_char;
 
-	char c = stk_char_2.pop();*/
+	//char c = stk_char_2.pop();
+
+	Stack<size_t> stk_size;
+	stk_size.push(0xDEADBEEF);
+	size_t i = stk_size.pop();
+	stk_size.push(0xDEADBEAF);
+	i = stk_size.pop();
 }
