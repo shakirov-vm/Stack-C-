@@ -292,27 +292,9 @@ template <typename TYPE>
 void Stack<TYPE>::count_hash(char* data_) {
 	hash = 0;
 	size_t capacity_ = capacity * sizeof(TYPE);  //There should be no overflow, since there is a limit of addresses in memory
-
-	/*for (size_t i = 0; i < capacity_; i++) {
-		if (data_[i] % 3 == 0) {
-			hash ^= data_[i];
-			hash <<= 1; 
-		}
-		else {
-			hash ^= !data_[i];
-			hash >>= 1; 
-		}
-	}
-	hash |= left_canary;
-	hash &= right_canary;
-	hash |= reinterpret_cast<size_t>(data - sizeof(size_t));
-	hash &= reinterpret_cast<size_t>(data + capacity_);
-	hash ^= !size;*/
-	//hash = !hash | size;
-	//hash = !capacity | hash;
-
 	size_t p = 257; // A prime number of about 256
 	size_t p_pow = 1;
+	
 	for (size_t i = 0; i < capacity_; ++i)
 	{
 		hash += (data_[i] + 1) * p_pow;
